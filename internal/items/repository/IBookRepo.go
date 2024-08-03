@@ -1,6 +1,6 @@
 package repository
 
-import "book/internal/models"
+import "github.com/ruziba3vich/boock/internal/models"
 
 type (
 	IBookRepo interface {

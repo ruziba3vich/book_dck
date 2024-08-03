@@ -14,6 +14,7 @@ type (
 		PublisherYear int    `json:"published_year"`
 	}
 	UpdateBookRequest struct {
+		BookId        string `json:"book_id"`
 		Title         string `json:"title"`
 		Author        string `json:"suthor"`
 		PublisherYear int    `json:"published_year"`
