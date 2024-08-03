@@ -56,11 +56,11 @@ func (c *Config) Load() error {
 }
 
 func New() (*Config, error) {
-	config := &Config{}
+	var config Config
 	if err := config.Load(); err != nil {
 		return nil, err
 	}
-	return config, nil
+	return &config, nil
 }
 
 // REDIS_URI=redis_uri

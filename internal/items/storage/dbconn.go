@@ -8,7 +8,7 @@ import (
 	"github.com/ruziba3vich/boock/internal/items/config"
 )
 
-func ConnectDB(config config.Config) (*sql.DB, error) {
+func ConnectDB(config *config.Config) (*sql.DB, error) {
 	connStr := fmt.Sprintf("user=%s dbname=%s password=%s host=%s port=%s sslmode=disable",
 		config.Database.User,
 		config.Database.DBName,
