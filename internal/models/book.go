@@ -4,19 +4,19 @@ type (
 	Book struct {
 		BookId        string `json:"book_id"`
 		Title         string `json:"title"`
-		Author        string `json:"suthor"`
+		Author        string `json:"author"`
 		PublisherYear int    `json:"published_year"`
 	}
 
 	CreateBookRequest struct {
 		Title         string `json:"title"`
-		Author        string `json:"suthor"`
+		Author        string `json:"author"`
 		PublisherYear int    `json:"published_year"`
 	}
 	UpdateBookRequest struct {
 		BookId        string `json:"book_id"`
 		Title         string `json:"title"`
-		Author        string `json:"suthor"`
+		Author        string `json:"author"`
 		PublisherYear int    `json:"published_year"`
 	}
 	GetAllBooksRequest struct {

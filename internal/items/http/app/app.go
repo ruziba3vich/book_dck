@@ -10,14 +10,14 @@ import (
 func Run(router *gin.Engine, handler *handler.Handler, logger *log.Logger, host string) error {
 	r := router.Group("/books")
 
-	r.POST("/", handler.CreateBookHandler)
-	r.PUT("/", handler.UpdateBookHandler)
-	r.GET("/", handler.GetBookByIdHandler)
-	r.GET("/", handler.GetAllBooksHandler)
+	r.POST("", handler.CreateBookHandler)
+	r.PUT("", handler.UpdateBookHandler)
+	r.GET("/:id", handler.GetBookByIdHandler)
+	r.GET("/all", handler.GetAllBooksHandler)
 	r.GET("/author", handler.GetBooksByAuthorHandler)
 	r.GET("/name", handler.GetBooksByNameHandler)
 	r.GET("/search", handler.SearchBooksHandler)
-	r.DELETE("/", handler.DeleteBookByIdHandler)
+	r.DELETE("/:id", handler.DeleteBookByIdHandler)
 
 	return router.Run(host)
 }
