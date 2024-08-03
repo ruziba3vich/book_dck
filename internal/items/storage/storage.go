@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ruziba3vich/boock/internal/items/config"
 	"github.com/ruziba3vich/boock/internal/items/redisservice"
+	"github.com/ruziba3vich/boock/internal/items/repository"
 	"github.com/ruziba3vich/boock/internal/models"
 )
 
@@ -20,7 +21,7 @@ type Storage struct {
 	logger       *log.Logger
 }
 
-func New(redis *redisservice.RedisService, postgres *sql.DB, queryBuilder sq.StatementBuilderType, cfg *config.Config, logger *log.Logger) *Storage {
+func New(redis *redisservice.RedisService, postgres *sql.DB, queryBuilder sq.StatementBuilderType, cfg *config.Config, logger *log.Logger) repository.IBookRepo {
 	return &Storage{
 		redis:        redis,
 		postgres:     postgres,
@@ -31,6 +32,13 @@ func New(redis *redisservice.RedisService, postgres *sql.DB, queryBuilder sq.Sta
 }
 
 func (s *Storage) CreateBook(ctx context.Context, req *models.CreateBookRequest) (*models.Book, error) {
+	tx, err := s.postgres.BeginTx(ctx, nil)
+	if err != nil {
+		s.logger.Println("Error while starting a transaction")
+		return nil, err
+	}
+	defer tx.Rollback()
+
 	bookId := uuid.New().String()
 	query, args, err := s.queryBuilder.Insert(s.cfg.TableName).
 		Columns(s.cfg.BookId, s.cfg.Author, s.cfg.Title, s.cfg.PublisherYear).
@@ -40,7 +48,7 @@ func (s *Storage) CreateBook(ctx context.Context, req *models.CreateBookRequest)
 		s.logger.Println(err)
 		return nil, err
 	}
-	rows, err := s.postgres.ExecContext(ctx, query, args...)
+	rows, err := tx.ExecContext(ctx, query, args...)
 	if err != nil {
 		s.logger.Println(err)
 		return nil, err
@@ -60,10 +68,24 @@ func (s *Storage) CreateBook(ctx context.Context, req *models.CreateBookRequest)
 		Title:         req.Title,
 		PublisherYear: req.PublisherYear,
 	}
-	return s.redis.StoreBookInRedis(ctx, &book)
+	result, err := s.redis.StoreBookInRedis(ctx, &book)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		s.logger.Println("Error while commiting transaction :", err.Error())
+	}
+	return result, nil
 }
 
 func (s *Storage) UpdateBook(ctx context.Context, req *models.UpdateBookRequest) (*models.Book, error) {
+	tx, err := s.postgres.BeginTx(ctx, nil)
+	if err != nil {
+		s.logger.Println("Error while starting a transaction")
+		return nil, err
+	}
+	defer tx.Rollback()
+
 	queryBuilder := s.queryBuilder.Update(s.cfg.TableName)
 
 	if len(req.Author) > 0 {
@@ -105,7 +127,14 @@ func (s *Storage) UpdateBook(ctx context.Context, req *models.UpdateBookRequest)
 		return nil, err
 	}
 
-	return s.redis.StoreBookInRedis(ctx, updatedBook)
+	redisBook, err := s.redis.StoreBookInRedis(ctx, updatedBook)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		s.logger.Println("Error while commiting transaction :", err.Error())
+	}
+	return redisBook, nil
 }
 
 func (s *Storage) GetBookById(ctx context.Context, req *models.GetBookByIdRequest) (*models.Book, error) {
@@ -225,16 +254,58 @@ func (s *Storage) GetBooksByName(ctx context.Context, req *models.GetBooksByName
 	return &models.GetSeveralResponse{Books: books}, nil
 }
 
-func (s *Storage) SearchBooks(*models.SearchBooksRequest) (*models.GetSeveralResponse, error) {
+func (s *Storage) DeleteBookById(ctx context.Context, req *models.DeleteBookByIdRequest) error {
+	tx, err := s.postgres.BeginTx(ctx, nil)
+	if err != nil {
+		s.logger.Println("Error starting transaction:", err)
+		return err
+	}
+	defer tx.Rollback()
+
+	query, args, err := s.queryBuilder.Delete(s.cfg.TableName).
+		Where(sq.Eq{s.cfg.BookId: req.BookId}).
+		ToSql()
+	if err != nil {
+		s.logger.Println("Error building SQL query:", err)
+		return err
+	}
+
+	res, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		s.logger.Println("Error executing SQL query:", err)
+		return err
+	}
+
+	ra, err := res.RowsAffected()
+	if ra == 0 || err != nil {
+		s.logger.Println("No rows affected:", err)
+		return err
+	}
+
+	if err := s.redis.DeleteBookFromRedis(ctx, "book:"+req.BookId); err != nil {
+		s.logger.Println("Error deleting book from Redis:", err)
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		s.logger.Println("Error committing transaction:", err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *Storage) SearchBooks(ctx context.Context, req *models.SearchBooksRequest) (*models.GetSeveralResponse, error) {
 	return nil, nil
 }
 
 /*
-	CreateBook(*models.CreateBookRequest) (*models.Book, error) ---
+	CreateBook(*models.CreateBookRequest) (*models.Book, error)
 	UpdateBook(*models.UpdateBookRequest) (*models.Book, error)
 	GetBookById(*models.GetBookByIdRequest) (*models.Book, error)
 	GetAllBooks(*models.GetAllBooksRequest) (*models.GetSeveralResponse, error)
 	GetBooksByAuthor(*models.GetBooksByAuthorRequest) (*models.GetSeveralResponse, error)
 	GetBooksByName(*models.GetBooksByNameRequest) (*models.GetSeveralResponse, error)
 	SearchBooks(*models.SearchBooksRequest) (*models.GetSeveralResponse, error)
+	DeleteBookById(context.Context,*models.DeleteBookByIdRequest) error
 */

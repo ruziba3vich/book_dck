@@ -38,6 +38,9 @@ type (
 	SearchBooksRequest struct {
 		Search string `json:"search"`
 	}
+	DeleteBookByIdRequest struct {
+		BookId string `json:"book_id"`
+	}
 )
 
 /*
